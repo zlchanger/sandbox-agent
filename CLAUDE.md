@@ -22,6 +22,10 @@
   - `server/packages/sandbox-agent/src/cli.rs`
 - Keep docs aligned to implemented endpoints/commands only (for example ACP under `/v1/acp`, not legacy session REST APIs).
 
+## Docs Styling
+
+- Docs styling is owned by the shared **`@rivet-dev/docs-theme`** repo (`github.com/rivet-dev/docs-theme`), consumed via `github:rivet-dev/docs-theme#<tag>` in `frontend/packages/website`. To change any docs styling (palette, header, sidebar, code blocks, fonts), edit that repo and follow its CLAUDE.md release workflow — never restyle docs here. This site owns only docs content + `frontend/packages/website/docs.config.mjs` (sidebar icons via each item's `attrs['data-icon']`).
+
 ## Change Tracking
 
 - If the user asks to "push" changes, treat that as permission to commit and push all current workspace changes, not a hand-picked subset, unless the user explicitly scopes the push.
