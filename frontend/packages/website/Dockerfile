@@ -1,6 +1,7 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-RUN npm install -g pnpm@9
+# git is required for pnpm to resolve the github: @rivet-dev/docs-theme dependency.
+RUN apk add --no-cache git && npm install -g pnpm@9
 
 # Copy website package
 COPY frontend/packages/website/package.json ./
