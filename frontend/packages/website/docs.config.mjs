@@ -1,0 +1,123 @@
+/**
+ * Sandbox Agent docs configuration — consumed by @rivet-dev/docs-theme. The
+ * sidebar mirrors the former Mintlify docs.json navigation; the OpenAPI "HTTP
+ * API" tab is tracked separately (see TODO below). Icons attach via each item's
+ * attrs.data-icon (shared theme catalog).
+ *
+ * @type {import('@rivet-dev/docs-theme').SiteConfig}
+ */
+export const siteConfig = {
+  product: "Sandbox Agent",
+  productLogo: "/images/sandbox-agent-logo-ink.svg",
+  productHome: "/",
+  favicon: "/favicon.svg",
+  repo: "rivet-dev/sandbox-agent",
+  editPath: "frontend/packages/website/",
+
+  topNav: [
+    { label: "Documentation", href: "/docs", match: "/docs" },
+    { label: "Changelog", href: "https://github.com/rivet-dev/sandbox-agent/releases" },
+  ],
+  cta: { label: "Get Started", href: "/docs/quickstart" },
+  social: { discord: "https://discord.gg/auCecybynK" },
+
+  analytics: { posthogKey: "phc_6kfTNEAVw7rn1LA51cO3D69FefbKupSWFaM7OUgEpEo" },
+
+  landing: {
+    title: "Documentation",
+    subtitle: "Sandbox Agent is a universal SDK for running coding agents in sandboxes and controlling them over HTTP.",
+    cards: [
+      { title: "Quickstart", href: "/docs/quickstart", icon: "rocket", description: "Start the server and send your first message." },
+      { title: "SDK Overview", href: "/docs/sdk-overview", icon: "terminal", description: "Drive coding agents programmatically over HTTP." },
+      { title: "Agents", href: "/docs/agents/claude", icon: "bot", description: "Claude Code, Codex, OpenCode, Cursor, Amp, and Pi." },
+      { title: "Deploy", href: "/docs/deploy/local", icon: "server", description: "Run on E2B, Daytona, Vercel, Cloudflare, Docker, and more." },
+      { title: "System", href: "/docs/file-system", icon: "cpu", description: "Filesystem, processes, computer use, and software." },
+      { title: "Reference", href: "/docs/architecture", icon: "book", description: "Architecture, CLI, inspector, and troubleshooting." },
+    ],
+  },
+
+  sidebar: [
+    {
+      label: "Getting Started",
+      items: [
+        { slug: "docs/quickstart", attrs: { "data-icon": "rocket" } },
+        { slug: "docs/sdk-overview", label: "SDK Overview", attrs: { "data-icon": "terminal" } },
+        { slug: "docs/llm-credentials", label: "LLM Credentials", attrs: { "data-icon": "key" } },
+        { slug: "docs/react-components", label: "React Components", attrs: { "data-icon": "fileCode" } },
+        {
+          label: "Deploy",
+          items: [
+            { slug: "docs/deploy/local", label: "Local", attrs: { "data-icon": "hexagon" } },
+            { slug: "docs/deploy/e2b", label: "E2B", attrs: { "data-icon": "box" } },
+            { slug: "docs/deploy/daytona", label: "Daytona", attrs: { "data-icon": "box" } },
+            { slug: "docs/deploy/agentcomputer", label: "AgentComputer", attrs: { "data-icon": "server" } },
+            { slug: "docs/deploy/vercel", label: "Vercel", attrs: { "data-icon": "globe" } },
+            { slug: "docs/deploy/cloudflare", label: "Cloudflare", attrs: { "data-icon": "cloud" } },
+            { slug: "docs/deploy/docker", label: "Docker", attrs: { "data-icon": "box" } },
+            { slug: "docs/deploy/modal", label: "Modal", attrs: { "data-icon": "box" } },
+            { slug: "docs/deploy/boxlite", label: "BoxLite", attrs: { "data-icon": "box" } },
+            { slug: "docs/deploy/computesdk", label: "ComputeSDK", attrs: { "data-icon": "cpu" } },
+          ],
+        },
+      ],
+    },
+    {
+      label: "Agent",
+      items: [
+        { slug: "docs/agent-sessions", label: "Agent Sessions", attrs: { "data-icon": "messages" } },
+        {
+          label: "Agents",
+          items: [
+            { slug: "docs/agents/claude", label: "Claude Code" },
+            { slug: "docs/agents/codex", label: "Codex" },
+            { slug: "docs/agents/opencode", label: "OpenCode" },
+            { slug: "docs/agents/cursor", label: "Cursor" },
+            { slug: "docs/agents/amp", label: "Amp" },
+            { slug: "docs/agents/pi", label: "Pi" },
+          ],
+        },
+        { slug: "docs/attachments", attrs: { "data-icon": "folder" } },
+        { slug: "docs/skills-config", label: "Skills Config", attrs: { "data-icon": "puzzle" } },
+        { slug: "docs/mcp-config", label: "MCP Config", attrs: { "data-icon": "network" } },
+        { slug: "docs/custom-tools", label: "Custom Tools", attrs: { "data-icon": "wrench" } },
+      ],
+    },
+    {
+      label: "System",
+      items: [
+        { slug: "docs/file-system", label: "File System", attrs: { "data-icon": "floppyDisk" } },
+        { slug: "docs/processes", attrs: { "data-icon": "terminal" } },
+        { slug: "docs/computer-use", label: "Computer Use", attrs: { "data-icon": "cpu" } },
+        { slug: "docs/common-software", label: "Common Software", attrs: { "data-icon": "download" } },
+      ],
+    },
+    {
+      label: "Reference",
+      items: [
+        { slug: "docs/troubleshooting", attrs: { "data-icon": "shield" } },
+        { slug: "docs/architecture", attrs: { "data-icon": "blocks" } },
+        { slug: "docs/cli", label: "CLI", attrs: { "data-icon": "terminal" } },
+        { slug: "docs/inspector", attrs: { "data-icon": "gauge" } },
+        { slug: "docs/opencode-compatibility", label: "OpenCode Compatibility", attrs: { "data-icon": "check" } },
+        {
+          label: "More",
+          items: [
+            { slug: "docs/daemon", attrs: { "data-icon": "server" } },
+            { slug: "docs/cors", label: "CORS", attrs: { "data-icon": "globe" } },
+            { slug: "docs/session-restoration", label: "Session Restoration", attrs: { "data-icon": "clock" } },
+            { slug: "docs/telemetry", attrs: { "data-icon": "gauge" } },
+            {
+              label: "AI",
+              items: [
+                { slug: "docs/ai/skill", label: "Skill", attrs: { "data-icon": "puzzle" } },
+                { slug: "docs/ai/llms-txt", label: "llms.txt", attrs: { "data-icon": "fileCode" } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+export default siteConfig;

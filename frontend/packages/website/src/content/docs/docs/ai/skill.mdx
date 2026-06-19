@@ -1,0 +1,33 @@
+---
+title: "skill.md"
+description: "Agent skill manifest for this documentation."
+---
+
+import { TabItem, Tabs } from '@astrojs/starlight/components';
+
+
+Mintlify hosts a `skill.md` file for this documentation site.
+
+Access it at:
+
+```
+https://sandboxagent.dev/docs/skill.md
+```
+
+To add it to an agent using the Skills CLI:
+
+<Tabs>
+  <TabItem label="npx">
+```bash
+npx skills add rivet-dev/skills -s sandbox-agent
+```
+  </TabItem>
+  <TabItem label="bunx">
+```bash
+bunx skills add rivet-dev/skills -s sandbox-agent
+```
+  </TabItem>
+</Tabs>
+
+If you run a reverse proxy in front of the docs, make sure `/skill.md` and `/.well-known/skills/*`
+are forwarded to Mintlify.
