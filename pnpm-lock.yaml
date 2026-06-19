@@ -760,6 +760,9 @@ importers:
       sharp:
         specifier: ^0.33.5
         version: 0.33.5
+      starlight-openapi:
+        specifier: ^0.22.1
+        version: 0.22.1(@astrojs/markdown-remark@6.3.11)(@astrojs/starlight@0.36.3(astro@5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)))(astro@5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2))
       tailwindcss:
         specifier: ^3.4.0
         version: 3.4.19(tsx@4.21.0)(yaml@2.8.2)
@@ -1103,6 +1106,10 @@ packages:
   '@antfu/ni@0.23.2':
     resolution: {integrity: sha512-FSEVWXvwroExDXUu8qV6Wqp2X3D1nJ0Li4LFymCyvCVrm7I3lNfG0zZWSWvGU1RE7891eTnFTyh31L3igOwNKQ==}
     hasBin: true
+
+  '@apidevtools/json-schema-ref-parser@13.0.5':
+    resolution: {integrity: sha512-xfh4xVJD62gG6spIc7lwxoWT+l16nZu1ELyU8FkjaP/oD2yP09EvLAU6KhtudN9aML2Khhs9pY6Slr7KGTES3w==}
+    engines: {node: '>= 16'}
 
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
@@ -2610,6 +2617,10 @@ packages:
       hono: '>=3.9.0'
       zod: ^3.25.0 || ^4.0.0
 
+  '@humanwhocodes/momoa@2.0.4':
+    resolution: {integrity: sha512-RE815I4arJFtt+FVeU1Tgp9/Xvecacji8w/V6XtXsWWH/wz/eNkNbhb+ny/+PlVZjV0rxQpRSQKNKE3lcktHEA==}
+    engines: {node: '>=10.10.0'}
+
   '@iarna/toml@2.2.5':
     resolution: {integrity: sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==}
 
@@ -3247,6 +3258,22 @@ packages:
   '@react-grab/mcp@0.1.27':
     resolution: {integrity: sha512-imK/Bh/rxeWRhnKV5rpm6kYyT0+O+9uX8njiyG1LE8hvJFboAY+3fHuOMC816+Gm5de/Asrf8R3uzNYPmgUUzg==}
     hasBin: true
+
+  '@readme/better-ajv-errors@2.4.0':
+    resolution: {integrity: sha512-9WODaOAKSl/mU+MYNZ2aHCrkoRSvmQ+1YkLj589OEqqjOAhbn8j7Z+ilYoiTu/he6X63/clsxxAB4qny9/dDzg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      ajv: 4.11.8 - 8
+
+  '@readme/openapi-parser@4.1.2':
+    resolution: {integrity: sha512-lAFH88r/CHs5VZDUocEda0OSMSQsr6801sziIjOKyVA+0hSFN+BPuelPF5XvkMROHecnPd+XEJN1iNQqCgER/g==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      openapi-types: '>=7'
+
+  '@readme/openapi-schemas@3.1.0':
+    resolution: {integrity: sha512-9FC/6ho8uFa8fV50+FPy/ngWN53jaUu4GRXlAjcxIRrzhltJnpKkBG2Tp0IDraFJeWrOpk84RJ9EMEEYzaI1Bw==}
+    engines: {node: '>=18'}
 
   '@rivet-dev/docs-theme@https://codeload.github.com/rivet-dev/docs-theme/tar.gz/aa489f5252b356bb3f2a5b07532ccd7d70c6d35c':
     resolution: {tarball: https://codeload.github.com/rivet-dev/docs-theme/tar.gz/aa489f5252b356bb3f2a5b07532ccd7d70c6d35c}
@@ -3979,6 +4006,14 @@ packages:
   aggregate-error@5.0.0:
     resolution: {integrity: sha512-gOsf2YwSlleG6IjRYG2A7k0HmBMEo6qVNk9Bp/EaLgAJT5ngH6PXbqa4ItvnEwCm/velL5jAnQgsHsWnjhGmvw==}
     engines: {node: '>=18'}
+
+  ajv-draft-04@1.0.0:
+    resolution: {integrity: sha512-mv00Te6nmYbRp5DCwclxtt7yV/joXJPGS7nM+97GdxvuttCOfgI3K4U25zboyeX0O+myI8ERluxQe5wljMmVIw==}
+    peerDependencies:
+      ajv: ^8.5.0
+    peerDependenciesMeta:
+      ajv:
+        optional: true
 
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
@@ -5645,6 +5680,10 @@ packages:
   jsonlines@0.1.1:
     resolution: {integrity: sha512-ekDrAGso79Cvf+dtm+mL8OBI2bmAOt3gssYs833De/C9NmIpWDWyUO4zPgB5x2/OhY366dkhgfPMYfwZF7yOZA==}
 
+  jsonpointer@5.0.1:
+    resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
+    engines: {node: '>=0.10.0'}
+
   just-extend@4.1.1:
     resolution: {integrity: sha512-aWgeGFW67BP3e5181Ep1Fv2v8z//iBJfrvyTnq8wG86vEESwmonn1zPBJ0VfmT9CJq2FIT0VsETtrNFm2a+SHA==}
 
@@ -5720,6 +5759,10 @@ packages:
   lefthook@2.1.3:
     resolution: {integrity: sha512-2W8PP/EGCvyS/x+Xza0Lgvn/EM3FKnr6m6xkfzpl6RKHl8TwPvs9iYZFQL99CnWTTvO+1mtQvIxGE/bD05038Q==}
     hasBin: true
+
+  leven@3.1.0:
+    resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
+    engines: {node: '>=6'}
 
   lilconfig@3.1.3:
     resolution: {integrity: sha512-/vlFKAoH5Cgt3Ie+JLhRbwOsCQePABiU3tJ1egGvyQ+33R/vcwM2Zl2QR/LzjsBeItPt3oSVXapn+m4nQDvpzw==}
@@ -7067,6 +7110,14 @@ packages:
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
 
+  starlight-openapi@0.22.1:
+    resolution: {integrity: sha512-hpYYpomwqb7f1wgpV+aV7O7sQu2QuG1VYFN+PZiqYj5RjbiCK0FKSF5YNnCZSfqiZRW3tCahu2JrxVVSqPUI+A==}
+    engines: {node: '>=18.17.1'}
+    peerDependencies:
+      '@astrojs/markdown-remark': '>=6.0.1'
+      '@astrojs/starlight': '>=0.34.0'
+      astro: '>=5.5.0'
+
   statuses@2.0.2:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
@@ -7547,6 +7598,10 @@ packages:
     peerDependencies:
       browserslist: '>= 4.21.0'
 
+  url-template@3.1.1:
+    resolution: {integrity: sha512-4oszoaEKE/mQOtAmdMWqIRHmkxWkUZMnXFnjQ5i01CuRSK3uluxcH1MRVVVWmhlnzT1SCDfKxxficm2G37qzCA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
   use-callback-ref@1.3.3:
     resolution: {integrity: sha512-jQL3lRnocaFtu3V00JToYz/4QkNWswxijDaCVNZRiRTO3HQDLsdu1ZtmIUvV4yPp+rvWm5j0y0TG/S61cuijTg==}
     engines: {node: '>=10'}
@@ -7972,6 +8027,11 @@ snapshots:
   '@alloc/quick-lru@5.2.0': {}
 
   '@antfu/ni@0.23.2': {}
+
+  '@apidevtools/json-schema-ref-parser@13.0.5':
+    dependencies:
+      '@types/json-schema': 7.0.15
+      js-yaml: 4.1.1
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -9607,6 +9667,8 @@ snapshots:
       hono: 4.12.2
       zod: 4.3.6
 
+  '@humanwhocodes/momoa@2.0.4': {}
+
   '@iarna/toml@2.2.5': {}
 
   '@img/colour@1.0.0': {}
@@ -10291,6 +10353,27 @@ snapshots:
       - '@types/react'
       - react
       - supports-color
+
+  '@readme/better-ajv-errors@2.4.0(ajv@8.17.1)':
+    dependencies:
+      '@babel/code-frame': 7.29.0
+      '@babel/runtime': 7.28.6
+      '@humanwhocodes/momoa': 2.0.4
+      ajv: 8.17.1
+      jsonpointer: 5.0.1
+      leven: 3.1.0
+      picocolors: 1.1.1
+
+  '@readme/openapi-parser@4.1.2':
+    dependencies:
+      '@apidevtools/json-schema-ref-parser': 13.0.5
+      '@readme/better-ajv-errors': 2.4.0(ajv@8.17.1)
+      '@readme/openapi-schemas': 3.1.0
+      '@types/json-schema': 7.0.15
+      ajv: 8.17.1
+      ajv-draft-04: 1.0.0(ajv@8.17.1)
+
+  '@readme/openapi-schemas@3.1.0': {}
 
   '@rivet-dev/docs-theme@https://codeload.github.com/rivet-dev/docs-theme/tar.gz/aa489f5252b356bb3f2a5b07532ccd7d70c6d35c(@astrojs/starlight@0.36.3(astro@5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)))(astro@5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2))':
     dependencies:
@@ -11199,6 +11282,10 @@ snapshots:
     dependencies:
       clean-stack: 5.3.0
       indent-string: 5.0.0
+
+  ajv-draft-04@1.0.0(ajv@8.17.1):
+    optionalDependencies:
+      ajv: 8.17.1
 
   ajv-formats@3.0.1:
     dependencies:
@@ -13121,6 +13208,8 @@ snapshots:
 
   jsonlines@0.1.1: {}
 
+  jsonpointer@5.0.1: {}
+
   just-extend@4.1.1: {}
 
   kdbush@3.0.0: {}
@@ -13175,6 +13264,8 @@ snapshots:
       lefthook-openbsd-x64: 2.1.3
       lefthook-windows-arm64: 2.1.3
       lefthook-windows-x64: 2.1.3
+
+  leven@3.1.0: {}
 
   lilconfig@3.1.3: {}
 
@@ -15024,6 +15115,17 @@ snapshots:
 
   stackback@0.0.2: {}
 
+  starlight-openapi@0.22.1(@astrojs/markdown-remark@6.3.11)(@astrojs/starlight@0.36.3(astro@5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)))(astro@5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)):
+    dependencies:
+      '@astrojs/markdown-remark': 6.3.11
+      '@astrojs/starlight': 0.36.3(astro@5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2))
+      '@readme/openapi-parser': 4.1.2
+      astro: 5.18.2(@types/node@25.5.0)(aws4fetch@1.0.20)(jiti@1.21.7)(rollup@4.56.0)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      github-slugger: 2.0.0
+      url-template: 3.1.1
+    transitivePeerDependencies:
+      - openapi-types
+
   statuses@2.0.2: {}
 
   std-env@3.10.0: {}
@@ -15533,6 +15635,8 @@ snapshots:
       browserslist: 4.28.1
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  url-template@3.1.1: {}
 
   use-callback-ref@1.3.3(@types/react@19.2.14)(react@19.2.4):
     dependencies:
