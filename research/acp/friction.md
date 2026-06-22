@@ -18,6 +18,16 @@ Update this file continuously during the migration.
 
 ## Entries
 
+- Date: 2026-06-22
+- Area: Agent process request timeout
+- Issue: The process exit watcher held the child-process mutex across an unbounded asynchronous wait. Request timeout and shutdown paths blocked on that mutex after their own timeout fired.
+- Impact: A timed-out prompt remained open until the agent process exited, potentially for hours, and runtime shutdown could also hang.
+- Proposed direction: Poll process status with short, non-blocking `try_wait` calls so timeout and shutdown paths can acquire the child-process mutex.
+- Decision: Accepted and implemented with a regression test covering a live agent that never responds.
+- Owner: Unassigned.
+- Status: resolved
+- Links: `server/packages/acp-http-adapter/src/process.rs`
+
 - Date: 2026-02-10
 - Area: Agent process availability
 - Issue: Amp does not have a confirmed official ACP agent process in current ACP docs/research.

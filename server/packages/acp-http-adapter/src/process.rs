@@ -17,6 +17,7 @@ use crate::registry::LaunchSpec;
 
 const RING_BUFFER_SIZE: usize = 1024;
 const STDERR_TAIL_SIZE: usize = 16;
+const EXIT_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Debug, Error)]
 pub enum AdapterError {
@@ -68,6 +69,7 @@ pub struct AdapterRuntime {
     spawned_at: Instant,
     first_stdout: Arc<AtomicBool>,
     stderr_tail: Arc<Mutex<VecDeque<String>>>,
+    exit_info: Arc<Mutex<Option<(Option<i32>, Option<String>)>>>,
 }
 
 impl AdapterRuntime {
@@ -128,6 +130,7 @@ impl AdapterRuntime {
             spawned_at: spawn_start,
             first_stdout: Arc::new(AtomicBool::new(false)),
             stderr_tail: Arc::new(Mutex::new(VecDeque::with_capacity(STDERR_TAIL_SIZE))),
+            exit_info: Arc::new(Mutex::new(None)),
         };
 
         runtime.spawn_stdout_loop(stdout);
@@ -511,17 +514,48 @@ impl AdapterRuntime {
         let sequence = self.sequence.clone();
         let spawned_at = self.spawned_at;
         let pending = self.pending.clone();
+        let stderr_tail = self.stderr_tail.clone();
+        let exit_info = self.exit_info.clone();
 
         tokio::spawn(async move {
-            let status = {
-                let mut guard = child.lock().await;
-                guard.wait().await.ok()
+            // Do not hold the child lock across Child::wait(). The timeout and
+            // shutdown paths also need this lock, and wait() may not complete
+            // until the agent exits hours later.
+            let status = loop {
+                let result = {
+                    let mut guard = child.lock().await;
+                    guard.try_wait()
+                };
+
+                match result {
+                    Ok(Some(status)) => break Some(status),
+                    Ok(None) => tokio::time::sleep(EXIT_POLL_INTERVAL).await,
+                    Err(_) => break None,
+                }
             };
 
             let age_ms = spawned_at.elapsed().as_millis() as u64;
-            let pending_count = pending.lock().await.len();
 
             if let Some(status) = status {
+                let stderr = {
+                    let tail = stderr_tail.lock().await;
+                    if tail.is_empty() {
+                        None
+                    } else {
+                        Some(tail.iter().cloned().collect::<Vec<_>>().join("\n"))
+                    }
+                };
+                *exit_info.lock().await = Some((status.code(), stderr));
+
+                let pending_count = {
+                    let mut guard = pending.lock().await;
+                    let count = guard.len();
+                    // Drop all pending response senders so callers waiting in
+                    // post() wake immediately instead of waiting for request_timeout.
+                    guard.clear();
+                    count
+                };
+
                 tracing::warn!(
                     success = status.success(),
                     code = status.code(),
@@ -555,6 +589,13 @@ impl AdapterRuntime {
 
                 let _ = sender.send(message);
             } else {
+                let pending_count = {
+                    let mut guard = pending.lock().await;
+                    let count = guard.len();
+                    guard.clear();
+                    count
+                };
+
                 tracing::error!(
                     age_ms = age_ms,
                     pending_requests = pending_count,
@@ -598,6 +639,10 @@ impl AdapterRuntime {
     }
 
     async fn try_process_exit_info(&self) -> Option<(Option<i32>, Option<String>)> {
+        if let Some(info) = self.exit_info.lock().await.clone() {
+            return Some(info);
+        }
+
         let mut child = self.child.lock().await;
         match child.try_wait() {
             Ok(Some(status)) => {
@@ -622,4 +667,113 @@ impl AdapterRuntime {
 
 fn id_key(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "null".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::fs;
+    use std::time::Instant;
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn post_wakes_when_process_exits_before_response() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script = temp_dir.path().join("exit-agent.sh");
+        fs::write(
+            &script,
+            r#"#!/usr/bin/env sh
+while IFS= read -r _line; do
+  echo "fatal startup" >&2
+  exit 7
+done
+exit 7
+"#,
+        )
+        .expect("write script");
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("chmod script");
+
+        let runtime = AdapterRuntime::start(
+            LaunchSpec {
+                program: script,
+                args: Vec::new(),
+                env: HashMap::new(),
+            },
+            Duration::from_secs(30),
+        )
+        .await
+        .expect("start runtime");
+
+        let started = Instant::now();
+        let err = runtime
+            .post(json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }))
+            .await
+            .expect_err("post should fail when agent exits");
+
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "post should wake before request timeout"
+        );
+
+        match err {
+            AdapterError::Exited { exit_code, stderr } => {
+                assert_eq!(exit_code, Some(7));
+                assert!(
+                    stderr
+                        .as_deref()
+                        .is_some_and(|value| value.contains("fatal startup")),
+                    "stderr tail should include agent stderr"
+                );
+            }
+            other => panic!("expected process exit error, got {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn post_returns_when_request_times_out_while_process_is_running() {
+        let runtime = AdapterRuntime::start(
+            LaunchSpec {
+                program: "sh".into(),
+                args: vec![
+                    "-c".into(),
+                    "IFS= read -r _line; IFS= read -r _never".into(),
+                ],
+                env: HashMap::new(),
+            },
+            Duration::from_millis(100),
+        )
+        .await
+        .expect("start runtime");
+
+        let started = Instant::now();
+        let err = runtime
+            .post(json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "session/prompt",
+                "params": {}
+            }))
+            .await
+            .expect_err("post should time out");
+
+        assert!(matches!(err, AdapterError::Timeout));
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "post should return promptly after request timeout"
+        );
+
+        tokio::time::timeout(Duration::from_secs(2), runtime.shutdown())
+            .await
+            .expect("shutdown should not wait for the running process");
+    }
 }
