@@ -126,6 +126,7 @@ export const siteConfig = {
           label: "More",
           items: [
             { slug: "docs/daemon", attrs: { "data-icon": "server" } },
+            { slug: "docs/acp-http-client", label: "ACP over HTTP", attrs: { "data-icon": "network" } },
             { slug: "docs/cors", label: "CORS", attrs: { "data-icon": "globe" } },
             { slug: "docs/session-restoration", label: "Session Restoration", attrs: { "data-icon": "clock" } },
             { slug: "docs/telemetry", attrs: { "data-icon": "gauge" } },
