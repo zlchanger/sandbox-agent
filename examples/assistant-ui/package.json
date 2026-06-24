@@ -1,0 +1,35 @@
+{
+  "name": "@sandbox-agent/example-assistant-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:mcp": "esbuild mcp/server.ts --bundle --format=cjs --platform=node --target=node18 --outfile=dist/mcp-server.cjs",
+    "build": "vite build",
+    "start": "pnpm build:mcp && pnpm build && tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@assistant-ui/react": "latest",
+    "@modelcontextprotocol/sdk": "latest",
+    "@sandbox-agent/example-shared": "workspace:*",
+    "hono": "^4.12.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^2.15.0",
+    "sandbox-agent": "workspace:*",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@types/node": "latest",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "esbuild": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vite": "^6.2.0",
+    "vitest": "^3.0.0"
+  }
+}
