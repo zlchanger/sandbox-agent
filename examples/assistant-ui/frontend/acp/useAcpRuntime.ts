@@ -39,9 +39,6 @@ export function useAcpRuntime(session: Session | null) {
       if (!s) return;
       const text = appendMessageText(message);
       if (!text) return;
-      setState((prev) => ({
-        messages: [...prev.messages, { role: "user", content: [{ type: "text", text }] }],
-      }));
       setIsRunning(true);
       try {
         await s.prompt([{ type: "text", text }]);
