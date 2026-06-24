@@ -10,7 +10,7 @@ type ToolCallPart = {
   type: "tool-call";
   toolCallId: string;
   toolName: string;
-  args: unknown;
+  args: Record<string, unknown>;
   result?: unknown;
 };
 
@@ -30,7 +30,7 @@ function asText(content: unknown): string {
 }
 
 function cloneMessages(state: ReducerState): ThreadMessageLike[] {
-  return state.messages.map((m) => ({ ...m, content: Array.isArray(m.content) ? [...(m.content as Part[])] : m.content }));
+  return state.messages.map((m) => ({ ...m, content: Array.isArray(m.content) ? [...(m.content as Part[])] : m.content })) as ThreadMessageLike[];
 }
 
 function ensureAssistant(messages: ThreadMessageLike[]): ThreadMessageLike {
@@ -63,7 +63,7 @@ function addToolCall(state: ReducerState, update: Raw): ReducerState {
     type: "tool-call",
     toolCallId: String(update.toolCallId ?? ""),
     toolName: normalizeToolName(String(update.title ?? "")),
-    args: update.rawInput ?? {},
+    args: (update.rawInput as Record<string, unknown>) ?? {},
   });
   return { messages };
 }

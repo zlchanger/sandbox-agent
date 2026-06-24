@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { initialState, reduce, normalizeToolName, type ReducerState } from "./eventReducer";
 import type { SessionEvent } from "sandbox-agent";
 
-function ev(partial: Partial<SessionEvent> & { payload: unknown }): SessionEvent {
+function ev(partial: { payload: unknown; sender?: string; [k: string]: unknown }): SessionEvent {
   return {
     id: Math.random().toString(36).slice(2),
     eventIndex: 0,
@@ -11,7 +11,7 @@ function ev(partial: Partial<SessionEvent> & { payload: unknown }): SessionEvent
     connectionId: "c1",
     sender: "agent",
     ...partial,
-  } as SessionEvent;
+  } as unknown as SessionEvent;
 }
 
 describe("normalizeToolName", () => {
