@@ -85,9 +85,17 @@ The example expects these tool names (by convention):
 
 Forms submit by sending the collected values back as a new user prompt (`session.prompt`). This is the only structured-form path that works today and is agent-agnostic. The agent receives the values as text. Constraint documented in code comments.
 
-## Demo driver (decision)
+## Demo driver (decision: real agent + MCP tools)
 
-Default to driving the demo with the repo's **`mock-acp-agent`**, scripted to emit `render_chart`, `collect_form`, and `show_media` tool calls plus text — deterministic, no API key, exercises all four tool UIs. The connection layer stays generic, so pointing the example at a real agent (claude/codex) also works; real-agent tool calls (bash/read/edit) render via `FallbackToolUI`. Real agents will not emit the chart/form/media tools without extra tooling, so the out-of-box rich demo relies on the mock agent.
+No built-in agent emits custom `render_chart` / `collect_form` / `show_media` tool calls (the built-in `mock` agent and `examples/mock-acp-agent` only echo). The chosen, production-like driver is a **real agent (claude) calling custom MCP tools**:
+
+- A small stdio MCP server (`@modelcontextprotocol/sdk`) exposes three tools: `render_chart`, `collect_form`, `show_media`. Each tool's input args carry everything the UI needs to render (chart data, form field spec, media url); the tool returns a simple acknowledgement.
+- The MCP server bundle is uploaded into the sandbox and wired via `sessionInit.mcpServers` at `createSession` time (template: existing `examples/mcp-custom-tool/`).
+- A seed prompt instructs the agent to call these tools, so the four tool UIs render out of the box; any other real tool calls (bash/read/edit) render via `FallbackToolUI`.
+
+Requires agent credentials (e.g. `ANTHROPIC_API_KEY`) passed to the sandbox, which `startDockerSandbox` already collects. The FULL Docker image (`rivetdev/sandbox-agent:0.4.2-full`) ships the claude agent pre-installed.
+
+Note on tool naming: MCP tools may surface in ACP `tool_call.title` with a namespaced form (e.g. `mcp__<server>__render_chart`). The reducer normalizes the tool name to its final segment so `makeAssistantToolUI({ toolName: "render_chart" })` matches; the actual emitted title is confirmed during manual verification.
 
 ## File structure
 
@@ -97,7 +105,10 @@ examples/assistant-ui/
 ├── vite.config.ts          root: "frontend", outDir "../dist"
 ├── tsconfig.json
 ├── README.md
-├── src/index.ts            Hono: start sandbox (examples/shared) + /v1/* proxy + serve frontend
+├── mcp/
+│   ├── tools.ts            tool definitions (schemas + handlers), unit-tested
+│   └── server.ts           stdio MCP server wiring tools to @modelcontextprotocol/sdk
+├── src/index.ts            Hono: start sandbox (examples/shared) + upload MCP bundle + /v1/* proxy + serve frontend
 └── frontend/
     ├── main.tsx
     ├── App.tsx
@@ -107,9 +118,10 @@ examples/assistant-ui/
 
 ## Testing
 
-- `eventReducer.ts`: vitest unit tests — feed representative ACP event sequences (streaming chunks, tool_call + tool_call_update by id, permission request) and assert the produced messages/tool parts.
+- `eventReducer.ts`: vitest unit tests — feed representative ACP event sequences (streaming chunks, tool_call + tool_call_update by id, namespaced MCP tool name normalization) and assert the produced messages/tool parts.
+- `mcp/tools.ts`: vitest unit tests on each tool handler (valid args → expected structured result; the form/chart/media arg shapes).
 - `pnpm typecheck` for the package.
-- Manual run-through against `mock-acp-agent`, verifying all four tool UIs render.
+- Manual run-through against a real claude agent + MCP tools, verifying all four tool UIs render; confirm the actual emitted `tool_call.title` matches the normalization.
 
 ## Deferred (recorded, not implemented)
 
