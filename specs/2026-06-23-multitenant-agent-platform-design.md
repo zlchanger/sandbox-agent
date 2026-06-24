@@ -3,7 +3,8 @@
 - 日期:2026-06-23
 - 状态:设计待评审(Draft)
 - 范围:面向非开发用户的、对话式、多租户、带隔离性的 Agent 应用
-- 选型基调:**自建一层薄控制面 + 快沙箱运行时(Boxlite)+ 最大化复用 sandbox-agent 等开源件**
+- 选型基调:**自建一层薄控制面 + 可替换沙箱运行时(经 SandboxRuntime 抽象)+ 最大化复用 sandbox-agent 等开源件**
+- 修订:2026-06-24,核对 boxlite 源码后修正其能力认知(快照**仅磁盘、无内存热恢复**),据此重写会话生命周期(§4)、底座决策(§10)、风险(§11)与验收(§12);新增 skill/MCP 开机重放(§4.4)。底座(Coder/Boxlite/Docker)**待拍板**。
 
 > 本文是方案 A 的设计稿。实现计划(分阶段任务)在评审通过后单独产出。
 
@@ -39,11 +40,11 @@
 | 维度 | 结论 |
 |---|---|
 | 状态模型 | 混合:**持久数据(对象存储+DB)+ 临时计算** |
-| 计算生命周期 | **会话级**:活跃保温、**闲时 checkpoint 挂起、回来 restore** |
+| 计算生命周期 | **会话级**:活跃保持运行;中等空闲停机留盘、重开即恢复;长闲销毁、从 PG 事件 + 控制面清单重建(详见 §4)。**不依赖内存热恢复** |
 | 部署 | 自托管,不依赖 K8s |
-| 运行时 | **Boxlite**(Firecracker 微虚机,支持快照恢复,无 daemon) |
+| 运行时 | 经 **SandboxRuntime** 抽象解耦,具体底座**待拍板**(Coder / Boxlite / Docker,权衡见 §10);三者均**仅冷启、无内存热恢复** |
 | Agent 控制 | **sandbox-agent (Rivet)** 驱动 OpenCode |
-| Coder | 计算层弃用;仅作管理页信息架构参考(理由见 §10) |
+| Coder | 作为底座候选之一参与权衡(§10);信息架构亦可作管理页参考 |
 
 ---
 
@@ -58,15 +59,15 @@
                                   │ HTTP / SSE(后端优先,凭据不下发浏览器)
                  ┌────────────────▼─────────────────────────────┐
                  │  控制面 Control Plane(自建,核心代码)        │
-                 │  · SessionManager  会话↔Box 生命周期/保温/快照│
+                 │  · SessionManager  会话↔Box 生命周期/停机留盘/重建│
                  │  · TenantRouter    鉴权、租户路由、配额        │
                  │  · SandboxRuntime  运行时抽象接口(可换实现)  │
                  │  · sandbox-agent SDK(后端侧,持久化到 PG)    │
                  └───┬─────────────────┬──────────────────┬──────┘
                      │                 │                  │
         ┌────────────▼─────┐  ┌────────▼────────┐  ┌──────▼──────────┐
-        │ Boxlite 运行时   │  │ 认证/租户(复用)│  │ 数据层           │
-        │ 微虚机+checkpoint │  │ Logto/Zitadel   │  │ Postgres+对象存储│
+        │ 沙箱运行时(可换)│  │ 认证/租户(复用)│  │ 数据层           │
+        │ Docker/微虚机    │  │ Logto/Zitadel   │  │ Postgres+对象存储│
         │ ┌──────────────┐ │  │ /Keycloak       │  │ (MinIO/S3)      │
         │ │ Box(=会话)   │ │  └─────────────────┘  └─────────────────┘
         │ │ sandbox-agent│ │
@@ -87,8 +88,8 @@
 | 组件 | 选型 | 自建/复用 | 说明 |
 |---|---|---|---|
 | 对话 UI | 自有前端 | 自建(可用现成 Chat 模板) | 客服式多轮对话;不暴露开发概念 |
-| 控制面 / SessionManager | 自有后端 | **自建(核心)** | 会话↔Box 映射、保温、快照、租户路由 |
-| 沙箱运行时 | **Boxlite**(`@boxlite-ai/boxlite`,`SimpleBox`)+ BoxRun | 复用开源 | 见 `examples/boxlite` |
+| 控制面 / SessionManager | 自有后端 | **自建(核心)** | 会话↔Box 映射、停机留盘/重建、租户路由 |
+| 沙箱运行时 | 经 **SandboxRuntime** 抽象;MVP Docker,强隔离切 **Boxlite**(`@boxlite-ai/boxlite`,`SimpleBox`)/microVM | 复用开源 | 底座待拍板(§10);见 `examples/boxlite`、`examples/coder` |
 | Agent 控制 + 事件流 + 持久化 | **sandbox-agent (Rivet)** | 复用开源 | `SandboxAgent.connect` / `SessionPersistDriver` |
 | 早期观测页 | sandbox-agent **Inspector** | 复用 | 直接当 v0 运行观测 |
 | Agent 核心 | **OpenCode**(接 Kimi/Moonshot 模型) | 复用 | KimiCode 见 §9 |
@@ -103,44 +104,65 @@
 
 ## 4. 会话生命周期(核心)
 
-`SessionManager` 把「一段对话会话」映射到「一个 Boxlite Box」。状态机:
+`SessionManager` 把「一段对话会话」映射到「一个沙箱 Box」。
+
+**前提修正**:Boxlite/Coder/Docker **均无内存热恢复**(Boxlite 的 snapshot 仅 QCOW2 磁盘,见 §10)。本方案因此**不依赖温启**,而用「活跃保持运行 + 空闲分级回收」的三档梯子。这套恢复机制全部在 sandbox-agent + 控制面层实现,**与底座无关**。
 
 ```
- 新对话 ──▶ PROVISIONING ──▶ ACTIVE(温热)
-            启动 Box +              │  用户持续问答:秒回(文件/内存都在)
-            装 OpenCode/能力 +      │
-            挂租户数据             空闲 > idleTimeout
-                                    ▼
-                              SUSPENDED(已 checkpoint 快照)
-                                    │  用户回来
-                                    ▼
-                                 RESTORING ──▶ ACTIVE(秒级唤醒)
-                                    │
-                            超长不活跃 / 会话显式结束
-                                    ▼
-                                ARCHIVED(对话归档 PG + 销毁 Box)
+ 新对话 ──▶ PROVISIONING ──▶ ACTIVE(运行中)
+            起 Box + 装 OpenCode +     │  用户持续 / 短间隔问答:沙箱一直开着,
+            重放 skill/MCP + 挂数据     │  零恢复、秒回
+                                        │
+                                  空闲 > idleStop
+                                        ▼
+                                 STOPPED(停机留盘)
+                                        │  用户回来:重开 Box,磁盘上的
+                                        ▼  OpenCode 会话/skill/MCP 还在
+                                 RESTORING ──▶ ACTIVE
+                                        │
+                                超长不活跃 / 会话显式结束
+                                        ▼
+                                 ARCHIVED(销毁 Box + 回收磁盘;
+                                          会话留在 PG,可重建)
 ```
 
-### 4.1 两类「上下文」分开存(确保关了也不丢)
+### 4.1 三档空闲与回收
 
-| 上下文 | 存在哪 | 关掉 Box 会丢吗 |
+| 档位 | 触发 | Box 处理 | 恢复路径 | 闲时成本 |
+|---|---|---|---|---|
+| 活跃 / 短间隔 | 持续会话 | **保持运行** | 无需恢复 | RAM/CPU 常驻 |
+| 中等空闲 | 空闲 > `idleStop` | **停机但保留磁盘** | 重开,磁盘上的会话/skill/MCP 原样在 | 仅磁盘 |
+| 长闲 / 归档 | 空闲 > `archiveAfter` 或显式结束 | **销毁,回收磁盘** | 新起 Box + 重放 skill/MCP(§4.4)+ 尾部回放(§4.3) | 仅 PG/对象存储 |
+
+「闲时不烧资源」= 停掉 RAM/CPU;磁盘便宜可多留一会,真正长闲才回收磁盘。
+
+### 4.2 两类「上下文」分开存(确保关了也不丢)
+
+| 上下文 | 存在哪 | 销毁 Box 会丢吗 |
 |---|---|---|
 | **对话历史**(transcript/事件) | Postgres(`SessionPersistDriver`) | 不丢,可回放 |
-| **沙箱工作态**(文件/内存) | Box 内,靠 Boxlite checkpoint/restore | 仅在 ARCHIVED 时丢;且关键数据本就在对象存储 |
+| **skill / MCP 配置** | **控制面 DB(权威清单)**;运行时副本在 Box 内 | 清单不丢;Box 内副本随销毁丢,靠 §4.4 重放 |
+| **沙箱工作态**(文件) | Box 磁盘;关键产物本就在对象存储 | STOPPED 不丢;ARCHIVED 丢 Box 内的,产物仍在对象存储 |
 
-### 4.2 两级恢复(对应 sandbox-agent 的两种能力)
+### 4.3 对话上下文回放(只带当前会话)
 
-1. **SUSPENDED → RESTORING**:用 **Boxlite checkpoint/restore** 秒级唤醒,文件+内存原样恢复。`SessionRecord.sandboxId` 记录绑定的 Box。
-2. **ARCHIVED 后用户又回来**:Box 已销毁,走 sandbox-agent 的 **Session Restoration**(`docs/session-restoration.mdx`)——新起一个 Box,重建会话,**回放最近事件**(`replayMaxEvents`/`replayMaxChars` 受控)作为上下文,并重新挂载对象存储里的租户数据。
+走 sandbox-agent 的 **Session Restoration**(`docs/session-restoration.mdx`):按 `SessionRecord` 的 **local session id** 重建会话,**只回放该会话的近期事件**作为下一条 prompt 的上下文;其它历史会话是独立记录,**不会被加载**。
 
-这样:**活跃秒回 · 闲时不烧钱 · 唤醒秒级 · 彻底销毁也能续上**。
+- 回放是**有界尾部回放**:`replayMaxEvents`(默认 50)/ `replayMaxChars`(默认 12000)。会话很长时,冷恢复只带回**最近的尾部**,不是完整重建。
+- **唯一要定的设计旋钮**:这两个上限。调大则上下文更全但 prompt 更大(更贵更慢);调小则反之。MVP 用默认起步,按实测调。
 
-### 4.3 关键参数(MVP 默认,可配)
+### 4.4 skill / MCP 重放(开机声明式恢复)
 
-- `idleTimeout`:活跃→挂起阈值(建议 5–10 min)。
-- `suspendRetention`:挂起态保留时长,超过则 ARCHIVED(建议数小时~1 天)。
+skill/MCP 配置存在 **in-sandbox 的 sandbox-agent server**,**不在** persist driver 的 schema(`SessionRecord`/`SessionEvent`)里。所以销毁重建后不会自动回来。
+
+**机制**:控制面在自己 DB 里持有每个会话/租户的 **skill + MCP 清单(权威)**,每次 Box 冷启后、**第一条 prompt 之前**,用 `setSkillsConfig` / `setMcpConfig` 重放一遍(`docs/skills-config.mdx`、`docs/mcp-config.mdx`)。幂等、确定、与底座无关。STOPPED 重开时配置本就在磁盘上,此步可跳过或当幂等校验。
+
+### 4.5 关键参数(MVP 默认,可配)
+
+- `idleStop`:活跃到停机留盘阈值(建议 5-10 min)。
+- `archiveAfter`:停机态保留时长,超过则 ARCHIVED(建议数小时到 1 天)。
 - `maxConcurrentBoxesPerTenant`:租户级并发上限(配额)。
-- `replayMaxEvents` / `replayMaxChars`:跨重建回放上限(用默认值起步)。
+- `replayMaxEvents` / `replayMaxChars`:对话回放上限(默认值起步,见 §4.3)。
 
 ---
 
@@ -152,13 +174,13 @@
   → TenantRouter:鉴权 + 解析租户 + 配额检查
   → SessionManager:
        若 ACTIVE     → 直接复用该 Box 的会话
-       若 SUSPENDED  → Boxlite restore → ACTIVE
-       若 无 / ARCHIVED → 新建 Box(挂租户数据)→ 重建会话 + 回放历史
+       若 STOPPED    → 重开 Box(磁盘上的会话/skill/MCP 还在)→ ACTIVE
+       若 无 / ARCHIVED → 新建 Box(挂租户数据)→ 重放 skill/MCP(§4.4)→ 重建会话 + 尾部回放(§4.3)
   → sandbox-agent SDK:session.prompt(...)
   → Box 内 OpenCode 执行(必要时自写脚本 / 调 MCP / 跑 CLI / 读挂载的数据)
   → 事件流 SSE 实时回前端,同时落 Postgres(边到边存)
   → 产物(报告/文件)写入对象存储,返回引用
-  → 刷新会话 last-active 时间戳(驱动闲时挂起)
+  → 刷新会话 last-active 时间戳(驱动闲时停机 / 归档)
 ```
 
 落库策略遵循 `docs/manage-sessions.mdx`:事件到达即写库;重连按 `offset = 最后事件 sequence` 续传,避免重复写。
@@ -169,7 +191,7 @@
 
 ### 6.1 隔离层次
 
-1. **计算隔离**:每个会话独立 Box(Boxlite 微虚机,独立内核),租户的 AI 自写脚本只能影响自己的 Box。
+1. **计算隔离**:每个会话独立 Box(选 microVM/Boxlite 则独立内核,选 Docker 则 namespace 隔离),租户的 AI 自写脚本只能影响自己的 Box。
 2. **数据隔离**:对象存储按 `tenantId` 前缀/桶划分;Postgres 行级带 `tenantId`;Box 只挂载**当前租户、当前会话**所需数据。
 3. **凭据隔离**:LLM/MCP/第三方凭据按租户注入到对应 Box 的环境变量,不跨租户复用(参考 `examples/boxlite` 的 `env` 注入)。
 4. **鉴权边界**:遵循 `docs/security.mdx`——**后端优先**,任何 sandbox 相关请求前先「认证调用方 + 校验其对目标会话/租户的访问权 + 限流 + 审计日志」。RBAC 复用认证组件(owner/member/viewer 起步)。
@@ -208,7 +230,7 @@
 
 ## 8. 技术栈小结
 
-- **运行时**:Boxlite(`SimpleBox`)+ BoxRun;OCI 镜像内含 `sandbox-agent` 二进制 + OpenCode + skills/MCP/CLI。
+- **运行时**:经 `SandboxRuntime` 抽象,MVP 可 Docker 起步,Boxlite(`SimpleBox`)/microVM 作为强隔离选项(底座待拍板,见 §10);OCI 镜像内含 `sandbox-agent` 二进制 + OpenCode + skills/MCP/CLI。
 - **Agent 控制**:`sandbox-agent` TypeScript SDK(后端),`SessionPersistDriver` = Postgres。
 - **控制面**:Node/TypeScript 后端(与 SDK 同栈,减少摩擦)。
 - **认证**:Logto(自托管,组织/RBAC/API key 完整,最省事)——Zitadel/Keycloak 备选。
@@ -217,25 +239,34 @@
 
 ---
 
-## 9. OpenCode 与 KimiCode 的关系(待确认)
+## 9. OpenCode 与 KimiCode 的关系(已定:OpenCode + Kimi 模型)
 
-- sandbox-agent 有**一等公民的 OpenCode 适配器**,无 KimiCode 适配器。
-- **推荐路径**:用 **OpenCode 接 Kimi(Moonshot)模型**,即「OpenCode 当 Agent 壳,Kimi 当模型」。这样零额外适配成本。
-- 若**确需独立的 Kimi CLI**:需要自写一个 sandbox-agent 适配器,属额外工作量,**MVP 不建议**,留待 P2+ 评估。
-- **待确认问题**:你说的「KimiCode」指的是 ① OpenCode 用 Kimi 模型,还是 ② 独立 Kimi CLI?默认按 ①。
+- sandbox-agent 有**一等公民的 OpenCode 适配器**,**无 KimiCode 适配器**(支持的是 OpenCode/Codex/Cursor/Amp/Pi/Claude Code)。
+- **已采路径(①)**:用 **OpenCode 当 Agent 壳,Kimi(Moonshot)当模型**,零额外适配成本。Kimi 在 OpenCode 里是模型项(如 `opencode/kimi-k2`、`kimi-k2-thinking`、`kimi-k2.5`,见 `docs/agents/opencode.mdx`),不是独立 agent。
+- **不采路径(②)**:独立 Kimi CLI 需自写一个 sandbox-agent 适配器,属额外工作量,**MVP 不做**,留待 P2+ 按需评估。
 
 ---
 
-## 10. 为什么不「复用 Coder + 换成 Boxlite」(决策记录)
+## 10. 底座选型:Coder vs Boxlite vs Docker(决策记录,已按实测修正)
 
-Coder 的计算后端是 **Terraform 模板**(provisioner 仅 `terraform` 与测试用 `echo` 两种实现,见 `provisionersdk/proto/provisioner.proto`),且每个 workspace 必须内跑 `coder agent`。把它换成 Boxlite 需要自写一个 provisioner 或把 Boxlite 包成 TF 资源——**改造级工作**,并撞上四个根本冲突:
+**修正(2026-06-24)**:本节原称「Boxlite 有快照恢复、Coder 没有,故 Boxlite 更优」。**该前提错误**。核对 boxlite 源码:`SnapshotOptions` 是空结构,`create`/`restore` 的注释明写 “snapshot of the box's current **disk state**” / “restore box **disks**”,快照即 QCOW2 磁盘 COW;那些 `suspend`/`resume` 只是导出磁盘时用 SIGSTOP/SIGCONT 临时冻结 vCPU(`PauseGuard`),**没有把 guest 内存存盘再恢复的路径**。即 **Boxlite 与 Coder 一样,只有冷启 + 磁盘/回放重建,均无内存热恢复**。
 
-1. **生命周期冲突(最致命)**:Coder「启动」= 重新 provision,**没有内存快照 restore 概念**;与我们选定的「保温+checkpoint/restore」相悖,等于**抵消 Boxlite 的快与轻**。
-2. **沙箱内 agent 冲突**:Coder 要 `coder agent`,我们靠 `sandbox-agent + OpenCode`,一盒两 agent。
-3. **交互模型冲突**:Coder 偏「人用 SSH/IDE/Tasks 操作 workspace」,与「客服式聊天、Agent 代劳」错位;Coder Tasks 也是编码/开发取向。
-4. **License**:Coder 核心 AGPL,治理类(RBAC/SSO/审计/多组织)多为企业版收费。
+叠加 §4 的结论(本方案根本不需要热恢复;且会话/skill/MCP 恢复全在 sandbox-agent + 控制面层、与底座无关),底座选型回到一个普通的 build-vs-buy:
 
-**结论**:要快和轻 → 自建薄控制面 + Boxlite(本方案);要省事和现成治理 → 原样用 Coder。两者难以兼得,本方案选前者。
+| 维度 | Coder | Boxlite + 自建薄控制面 | Docker + 自建薄控制面 |
+|---|---|---|---|
+| 控制面 | 现成(模板/API/Web/基础 RBAC) | 自建 | 自建 |
+| 重开延迟 | 最重(terraform apply ~5-15s) | 微虚机起,较快 | 容器起,秒级 |
+| 隔离强度 | 取决于模板 | **每盒独立内核** | namespace |
+| 成熟度 | 高 | 较新(R1) | 高 |
+| License | 核心 AGPL;多组织/SSO/审计等治理走企业版收费 | Apache-2.0 | 宽松 |
+| 交互纹理 | 面向开发者(SSH/IDE/Tasks),需全程隐藏 | 中性 | 中性 |
+
+仍然成立的、不利于「扛 Coder 整套」的点:① 一盒两 agent(Coder 要 `coder agent`,我们要 `sandbox-agent + OpenCode`);② 开发者纹理与客服式产品错位;③ 真正想要的多租户治理(多组织/SSO/审计)恰在 Coder 企业版墙后,AGPL 核心只给基础;④ 频繁「停—留盘—重开」时 Coder 的 stop=reprovision 最重。
+
+**待拍板的真问题**:你需不需要**内核级的每租户隔离**(microVM)?这指向 Boxlite/microVM,而非「用 Coder 的容器模板」。
+
+**倾向(非最终)**:对面向非开发者的客服式产品,**自建薄控制面 + 经 `SandboxRuntime` 抽象的轻底座**仍是首选。**MVP 用 Docker 起步**(最成熟、最省、重开最快),把强隔离需求作为切到 **Boxlite/microVM** 的触发条件(见 §6 与 R1)。**仅当**确实要复用 Coder 的模板/RBAC/Web 当产品骨架、且接受其 License 与纹理代价时,才选 Coder。此项需正式拍板后回填本节结论。
 
 ---
 
@@ -243,19 +274,20 @@ Coder 的计算后端是 **Terraform 模板**(provisioner 仅 `terraform` 与测
 
 | # | 风险/待定 | 影响 | 处置 |
 |---|---|---|---|
-| R1 | Boxlite 较新,checkpoint/restore 成熟度/性能需实测 | 高 | 立项首周做 PoC:起停、快照恢复延迟、并发密度基准 |
+| R1 | 恢复 UX 的延迟下限由 **OpenCode 冷启 + 上下文回放**决定(与底座基本无关) | 高 | 首周 PoC:测 OpenCode 冷启 + 尾部回放到「上下文就绪」耗时;据此定 §4.3 回放上限与 `idleStop`。底座侧仅测 Box 起停延迟,不再测「内存快照」(已确认不存在) |
 | R2 | OpenCode 是编码 agent,要包装成非开发体验 | 中 | 通过系统提示/skills 收敛能力面;前端隐藏开发概念 |
-| R3 | KimiCode 适配口径未定(§9) | 中 | 先确认 ①/②;默认 ① |
+| R3 | ~~KimiCode 适配口径未定~~ 已定 ①:OpenCode + Kimi 模型(§9) | 低 | 无需自写适配器;仅在确需独立 Kimi CLI 时(②)P2+ 重评 |
 | R4 | 自写脚本执行的安全面(即便有微虚机) | 中 | 微虚机隔离 + 出网白名单 + 资源限额 + 凭据按租户隔离 |
 | R5 | 规模假设:前期小规模(数十租户/低并发) | 低 | 控制面无状态、可水平扩;Box 调度后续接队列 |
 | R6 | `SandboxRuntime` 抽象是否值得 | 低 | 值得:保留以后切 Docker/Boxlite/E2B 的余地,接口很薄 |
+| R7 | 底座(Coder/Boxlite/Docker)未拍板(§10) | 中 | 由「是否需要内核级每租户隔离」决定;MVP 经 `SandboxRuntime` 用 Docker 起步,不阻塞控制面/前端开发 |
 
 ---
 
 ## 12. 验收标准(MVP 完成的定义)
 
 1. 两个不同租户各自发起对话,Agent 能分析其上传文档/查询其数据,且**互不可见**。
-2. 同一会话内多轮问答**保留上下文**;中途空闲触发挂起,回来后**秒级恢复且上下文仍在**。
+2. 同一会话内多轮问答**保留上下文**;**活跃 / 短间隔期间沙箱保持运行、秒回**;**长闲停机后重开**,对话按**有界尾部回放**续上(界限可配,见 §4.3),skill/MCP 按 §4.4 重放。
 3. 会话被彻底归档后再次进入,能**凭历史回放续上**对话。
 4. 管理者可在 Inspector 看到任意会话的事件/transcript;在认证后台管理租户/用户。
 5. 全栈**自托管、无 K8s 依赖**,一台机器可跑通 PoC。
