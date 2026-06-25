@@ -51,9 +51,27 @@ app.all("/proxy/*", async (c) => {
 app.get("*", async (c) => {
   const rel = c.req.path === "/" ? "/index.html" : c.req.path;
   const file = path.join(PUBLIC_DIR, rel);
-  const target = fs.existsSync(file) && fs.statSync(file).isFile() ? file : path.join(PUBLIC_DIR, "index.html");
+
+  // Path traversal guard: ensure file is contained within PUBLIC_DIR
+  const isContained = file === PUBLIC_DIR || file.startsWith(PUBLIC_DIR + path.sep);
+
+  const target = isContained && fs.existsSync(file) && fs.statSync(file).isFile() ? file : path.join(PUBLIC_DIR, "index.html");
   const body = await fs.promises.readFile(target);
-  const type = target.endsWith(".js") ? "text/javascript" : target.endsWith(".css") ? "text/css" : "text/html";
+
+  // Extended content-type map for common Vite assets
+  const contentTypeMap: Record<string, string> = {
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".json": "application/json",
+    ".woff2": "font/woff2",
+  };
+
+  const ext = path.extname(target);
+  const type = contentTypeMap[ext] || "text/html";
+
   return new Response(body, { headers: { "content-type": type } });
 });
 
@@ -61,5 +79,7 @@ serve({ fetch: app.fetch, port: UI_PORT });
 console.log(`\n  Open: http://localhost:${UI_PORT}\n  Click "Run tool demo" to see chart/form/media render.\n  Ctrl+C to stop.`);
 
 process.on("SIGINT", () => {
-  cleanup().then(() => process.exit(0));
+  cleanup()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
 });
