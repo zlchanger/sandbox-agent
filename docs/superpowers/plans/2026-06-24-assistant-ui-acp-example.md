@@ -691,31 +691,31 @@ git commit -m "feat(examples/assistant-ui): add ACP connection and external-stor
 - Create: `examples/assistant-ui/frontend/tools/index.ts`
 
 **Interfaces:**
-- Consumes: `makeAssistantToolUI` from `@assistant-ui/react`; `recharts`.
-- Produces: `FallbackToolUI`, `ChartToolUI`, `MediaToolUI`, `FormToolUI` components, and a `SubmitContext` (React context) carrying `submit(text: string): void` so the form can send a follow-up prompt.
+- Consumes: `makeAssistantToolUI`, `ToolCallMessagePartComponent` from `@assistant-ui/react`; `recharts`.
+- Produces: `ChartToolUI`, `MediaToolUI`, `FormToolUI` (each a `makeAssistantToolUI` registration component); `FallbackToolUI` (a plain `ToolCallMessagePartComponent` used as the Parts `tools.Fallback` in Task 6, NOT a `makeAssistantToolUI` registration); a `SubmitContext` (React context) carrying `submit(text: string): void` so the form can send a follow-up prompt.
+
+**Verified API (installed @assistant-ui/react@0.14.23):**
+- `makeAssistantToolUI<TArgs, TResult>({ toolName, display, render })` matches one concrete `toolName` (NO `"*"` wildcard). `display: "standalone"` is the documented option for backend/MCP generative UI, so the chart/form/media UIs set it. `makeAssistantToolUI` is marked `@deprecated` in this version but still functional; it is the simplest working path for this example and is acceptable here.
+- `render` receives a `ToolCallMessagePartProps`: `{ toolName, args, argsText, result, status, addResult, ... }`. `status` is a `MessagePartStatus` with `status.type` of `"running" | "complete" | "incomplete" | "requires-action"`.
+- The fallback for tool calls with no registered UI is supplied to `MessagePrimitive.Parts` as `components.tools.Fallback` (a `ToolCallMessagePartComponent`). So `FallbackToolUI` is a plain component, wired in Task 6.
 
 - [ ] **Step 1: Write `frontend/tools/FallbackToolUI.tsx`**
 
 ```tsx
-import { makeAssistantToolUI } from "@assistant-ui/react";
+import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
 
-export const FallbackToolUI = makeAssistantToolUI<Record<string, unknown>, unknown>({
-  toolName: "*",
-  render: ({ toolName, args, result, status }) => (
-    <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8, margin: "6px 0", fontSize: 13 }}>
-      <div style={{ fontWeight: 600 }}>
-        {toolName} <span style={{ color: "#888", fontWeight: 400 }}>({status.type})</span>
-      </div>
-      <pre style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{JSON.stringify(args, null, 2)}</pre>
-      {result != null && (
-        <pre style={{ margin: "4px 0 0", color: "#444", whiteSpace: "pre-wrap" }}>{JSON.stringify(result, null, 2)}</pre>
-      )}
+export const FallbackToolUI: ToolCallMessagePartComponent = ({ toolName, args, result, status }) => (
+  <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8, margin: "6px 0", fontSize: 13 }}>
+    <div style={{ fontWeight: 600 }}>
+      {toolName} <span style={{ color: "#888", fontWeight: 400 }}>({status?.type})</span>
     </div>
-  ),
-});
+    <pre style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{JSON.stringify(args, null, 2)}</pre>
+    {result != null && (
+      <pre style={{ margin: "4px 0 0", color: "#444", whiteSpace: "pre-wrap" }}>{JSON.stringify(result, null, 2)}</pre>
+    )}
+  </div>
+);
 ```
-
-> Note: the `toolName: "*"` wildcard registers a fallback renderer for tool calls that have no specific UI. If the installed `@assistant-ui/react` does not support `"*"`, register the fallback via the documented fallback mechanism (check the package's ToolUI exports) instead of inventing one.
 
 - [ ] **Step 2: Write `frontend/tools/ChartToolUI.tsx`**
 
@@ -727,6 +727,7 @@ type ChartArgs = { title: string; kind: "line" | "bar"; data: { label: string; v
 
 export const ChartToolUI = makeAssistantToolUI<ChartArgs, unknown>({
   toolName: "render_chart",
+  display: "standalone",
   render: ({ args }) => {
     const data = args?.data ?? [];
     return (
@@ -764,6 +765,7 @@ type MediaArgs = { url: string; alt?: string };
 
 export const MediaToolUI = makeAssistantToolUI<MediaArgs, unknown>({
   toolName: "show_media",
+  display: "standalone",
   render: ({ args }) =>
     args?.url ? (
       <img
@@ -788,6 +790,7 @@ type FormArgs = { title: string; fields: FormField[] };
 
 export const FormToolUI = makeAssistantToolUI<FormArgs, unknown>({
   toolName: "collect_form",
+  display: "standalone",
   render: ({ args }) => {
     const submit = useContext(SubmitContext);
     const [values, setValues] = useState<Record<string, string>>({});
@@ -854,14 +857,23 @@ git commit -m "feat(examples/assistant-ui): add chart/form/media/fallback tool U
 - Create: `examples/assistant-ui/frontend/main.tsx`
 
 **Interfaces:**
-- Consumes: `connectSession` (Task 4), `useAcpRuntime` (Task 4), tool UIs + `SubmitContext` (Task 5), `AssistantRuntimeProvider`, `Thread` from `@assistant-ui/react`, `Session` from `sandbox-agent`.
+- Consumes: `connectSession` (Task 4), `useAcpRuntime` (Task 4), tool UIs + `SubmitContext` (Task 5), `AssistantRuntimeProvider`, `ThreadPrimitive`, `MessagePrimitive`, `ComposerPrimitive` from `@assistant-ui/react`, `Session` from `sandbox-agent`.
 - The MCP server path inside the sandbox is the constant `MCP_SERVER_PATH = "/opt/mcp/sandbox-ui/mcp-server.cjs"` — must match the upload path used in Task 7.
+
+**Verified API (installed @assistant-ui/react@0.14.23):** there is NO prebuilt styled `Thread` in this package — compose from primitives. Use `ThreadPrimitive.Root` / `ThreadPrimitive.Viewport` / `ThreadPrimitive.Messages` (with `components={{ UserMessage, AssistantMessage }}`), `MessagePrimitive.Root` / `MessagePrimitive.Parts`, and `ComposerPrimitive.Root` / `ComposerPrimitive.Input` / `ComposerPrimitive.Send`. The tool-call fallback is wired via `MessagePrimitive.Parts components={{ tools: { Fallback: FallbackToolUI } }}`. The chart/media/form `makeAssistantToolUI` registration components must be MOUNTED in the tree (they render null but register their renderers); `FallbackToolUI` is NOT mounted — it is passed as the Parts fallback.
+
+> Primitive prop forwarding: confirm whether each primitive forwards `style`/`className` (some require an `asChild` child or a wrapping element). Read the installed `ThreadPrimitive`/`ComposerPrimitive` d.ts if a `style` prop is rejected, and wrap the primitive in a styled `<div>` rather than removing the primitive. Do not invent prop names.
 
 - [ ] **Step 1: Write `frontend/App.tsx`**
 
 ```tsx
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AssistantRuntimeProvider, Thread } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  ThreadPrimitive,
+  MessagePrimitive,
+  ComposerPrimitive,
+} from "@assistant-ui/react";
 import type { Session } from "sandbox-agent";
 import { connectSession } from "./acp/connection";
 import { useAcpRuntime } from "./acp/useAcpRuntime";
@@ -871,6 +883,22 @@ const MCP_SERVER_PATH = "/opt/mcp/sandbox-ui/mcp-server.cjs";
 const SEED_PROMPT =
   "Demo the UI tools: call render_chart with a small bar chart of three months of sales, " +
   "then call show_media with any public image URL, then call collect_form asking for name and email.";
+
+function UserMessage() {
+  return (
+    <div style={{ alignSelf: "flex-end", maxWidth: "80%", margin: "4px 0", background: "#0066cc", color: "#fff", padding: "6px 10px", borderRadius: 8 }}>
+      <MessagePrimitive.Parts />
+    </div>
+  );
+}
+
+function AssistantMessage() {
+  return (
+    <div style={{ alignSelf: "flex-start", maxWidth: "80%", margin: "4px 0" }}>
+      <MessagePrimitive.Parts components={{ tools: { Fallback: FallbackToolUI } }} />
+    </div>
+  );
+}
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -899,25 +927,29 @@ export function App() {
   return (
     <SubmitContext.Provider value={submit}>
       <AssistantRuntimeProvider runtime={runtime}>
-        <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-            <button onClick={() => submit(SEED_PROMPT)}>Run tool demo</button>
-          </div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <Thread />
-          </div>
-        </div>
+        {/* Mounting these registers their tool renderers; they render nothing themselves. */}
         <ChartToolUI />
         <MediaToolUI />
         <FormToolUI />
-        <FallbackToolUI />
+        <ThreadPrimitive.Root style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: 8, borderBottom: "1px solid #eee" }}>
+            <button onClick={() => submit(SEED_PROMPT)}>Run tool demo</button>
+          </div>
+          <ThreadPrimitive.Viewport style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: 12 }}>
+            <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+          </ThreadPrimitive.Viewport>
+          <ComposerPrimitive.Root style={{ display: "flex", gap: 8, padding: 8, borderTop: "1px solid #eee" }}>
+            <ComposerPrimitive.Input style={{ flex: 1, padding: 6 }} placeholder="Message..." />
+            <ComposerPrimitive.Send style={{ padding: "6px 12px" }}>Send</ComposerPrimitive.Send>
+          </ComposerPrimitive.Root>
+        </ThreadPrimitive.Root>
       </AssistantRuntimeProvider>
     </SubmitContext.Provider>
   );
 }
 ```
 
-> Note: `Thread` is assistant-ui's prebuilt thread component. If the installed package exposes the thread under a different name/path (e.g. a styled `Thread` from a separate entry), import the actual exported component; do not invent one.
+> If a primitive rejects the `style` prop at typecheck, wrap it in a styled `<div>` (or use the primitive's `asChild` pattern) rather than dropping the primitive. Verify against the installed d.ts.
 
 - [ ] **Step 2: Write `frontend/main.tsx`**
 
