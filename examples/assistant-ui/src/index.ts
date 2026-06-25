@@ -44,7 +44,10 @@ app.all("/proxy/*", async (c) => {
     // @ts-expect-error Node fetch streaming requires duplex for request bodies.
     duplex: "half",
   });
-  return new Response(res.body, { status: res.status, headers: res.headers });
+  const respHeaders = new Headers(res.headers);
+  respHeaders.delete("content-encoding");
+  respHeaders.delete("content-length");
+  return new Response(res.body, { status: res.status, headers: respHeaders });
 });
 
 // Serve the built frontend.

@@ -62,6 +62,7 @@ function addToolCall(state: ReducerState, update: Raw): ReducerState {
   parts.push({
     type: "tool-call",
     toolCallId: String(update.toolCallId ?? ""),
+    // Tool UI selection hinges on the agent emitting the (possibly namespaced) tool name as the ACP tool_call "title". This mirrors the repo Inspector's behavior. normalizeToolName strips mcp__server__/server./server/ prefixes so makeAssistantToolUI({ toolName }) matches.
     toolName: normalizeToolName(String(update.title ?? "")),
     args: (update.rawInput as Record<string, unknown>) ?? {},
   });
