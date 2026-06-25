@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
+    "start:provider": "tsx src/index.provider.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
